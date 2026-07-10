@@ -4,14 +4,25 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -21,22 +32,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.thelightphone.lp3Keyboard.ui.*
+import com.thelightphone.lp3Keyboard.ui.CapsLockedLayout
+import com.thelightphone.lp3Keyboard.ui.DefaultLp3KeyboardViewModel
+import com.thelightphone.lp3Keyboard.ui.EmojiLayout
+import com.thelightphone.lp3Keyboard.ui.ExtendedCharKeyboard
+import com.thelightphone.lp3Keyboard.ui.KeyboardOptions
+import com.thelightphone.lp3Keyboard.ui.LayoutOptions
+import com.thelightphone.lp3Keyboard.ui.LowerCaseLayout
+import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardViewModel
+import com.thelightphone.lp3Keyboard.ui.Lp3RepeatableKeyboardCallback
+import com.thelightphone.lp3Keyboard.ui.NumberLayout
+import com.thelightphone.lp3Keyboard.ui.SymbolsLayout
+import com.thelightphone.lp3Keyboard.ui.UpperCaseLayout
+import com.thelightphone.lp3Keyboard.ui.defaultEmojis
 import com.thelightphone.sdk.ui.keyboard.LightEmbeddedLp3Keyboard
 import com.thelightphone.sdk.ui.keyboard.TextInputKeyboardCallback
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-
 
 @Composable
 fun LightTextInputEditor(
@@ -46,18 +68,21 @@ fun LightTextInputEditor(
     onBack: () -> Unit,
     keyboardOptionsFlow: StateFlow<KeyboardOptions>,
     modifier: Modifier = Modifier,
-    submitLabel: String = "SUBMIT",
+    submitLabel: String = "SAVE",
     submitIcon: LightIconConfiguration? = null,
     showBackButton: Boolean = true,
     singleLine: Boolean = false,
     editorKey: Any = title,
 ) {
     val currentOnSubmit by rememberUpdatedState(onSubmit)
-    val keyboardCallback = remember(state, singleLine) {
+    val currentState by rememberUpdatedState(state)
+    var textRevision by remember(editorKey) { mutableIntStateOf(0) }
+    val keyboardCallback = remember(editorKey, singleLine) {
         TextInputKeyboardCallback(
-            state = state,
+            stateProvider = { currentState },
             singleLine = singleLine,
-            onReturn = { currentOnSubmit(state.text) },
+            onReturn = { currentOnSubmit(currentState.text) },
+            onStateChanged = { textRevision++ },
         )
     }
 
@@ -67,25 +92,22 @@ fun LightTextInputEditor(
     )
 
     LightTextInputEditor(
-        title,
-        state,
-        onSubmit,
-        onBack,
-        keyboardViewModel,
-        modifier,
-        submitLabel,
-        submitIcon,
-        showBackButton,
-        singleLine,
+        title = title,
+        state = state,
+        onSubmit = onSubmit,
+        onBack = onBack,
+        viewModel = keyboardViewModel,
+        modifier = modifier,
+        submitLabel = submitLabel,
+        submitIcon = submitIcon,
+        showBackButton = showBackButton,
+        singleLine = singleLine,
+        textRevision = textRevision,
     )
 }
 
 /**
  * Full-screen text entry matching LightOS `DisplayWithKeyboardPortrait`
- *
- * - Top bar with back button + title
- * - Remaining space shows underlined heading-style input (top-aligned)
- * - Embedded LP3 keyboard, and [LightBottomBar] below it
  */
 @Composable
 fun LightTextInputEditor(
@@ -95,14 +117,22 @@ fun LightTextInputEditor(
     onBack: () -> Unit,
     viewModel: Lp3KeyboardViewModel,
     modifier: Modifier = Modifier,
-    submitLabel: String = "SUBMIT",
+    submitLabel: String = "SAVE",
     submitIcon: LightIconConfiguration? = null,
     showBackButton: Boolean = true,
     singleLine: Boolean = false,
+    textRevision: Int = 0,
 ) {
     val colors = LightThemeTokens.colors
     val inputStyle = lightInputTextStyle()
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val scrollState = rememberScrollState()
+    val displayText = state.text.toString()
+    val cursorPos = state.selection.min
+
+    LaunchedEffect(textRevision) {
+        // Ensure display refreshes when the LP3 keyboard mutates TextFieldState.
+    }
 
     Surface {
         Column(modifier = modifier.fillMaxSize()) {
@@ -119,7 +149,7 @@ fun LightTextInputEditor(
                 modifier = Modifier.padding(bottom = 1f.gridUnitsAsDp()),
             )
 
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -129,42 +159,66 @@ fun LightTextInputEditor(
                             val down = awaitFirstDown(requireUnconsumed = false)
                             textLayout?.let { layout ->
                                 state.edit {
-                                    selection =
-                                        TextRange(layout.getOffsetForPosition(down.position))
+                                    selection = TextRange(layout.getOffsetForPosition(down.position))
                                 }
                             }
                             drag(down.id) { change ->
                                 textLayout?.let { layout ->
                                     state.edit {
-                                        selection =
-                                            TextRange(layout.getOffsetForPosition(change.position))
+                                        selection = TextRange(layout.getOffsetForPosition(change.position))
                                     }
                                 }
                                 change.consume()
                             }
                         }
                     },
-                contentAlignment = Alignment.TopStart,
             ) {
-                BasicText(
-                    text = state.text.toString(),
-                    style = inputStyle,
-                    onTextLayout = { textLayout = it },
-                    maxLines = if (singleLine) 1 else Int.MAX_VALUE,
-                    softWrap = !singleLine,
-                    overflow = if (singleLine) TextOverflow.StartEllipsis else TextOverflow.Clip,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                val density = LocalDensity.current
+                val viewportHeightPx = with(density) { maxHeight.roundToPx() }
+                val scrollMarginPx = with(density) { 1.5f.gridUnitsAsDp().roundToPx() }
+                val textBottomPadding = if (singleLine) Modifier else Modifier.padding(bottom = 8f.gridUnitsAsDp())
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (singleLine) Modifier else Modifier.verticalScroll(scrollState)),
+                    contentAlignment = Alignment.TopStart,
+                ) {
+                    BasicText(
+                        text = displayText,
+                        style = inputStyle,
+                        onTextLayout = { textLayout = it },
+                        maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                        softWrap = !singleLine,
+                        overflow = if (singleLine) TextOverflow.StartEllipsis else TextOverflow.Clip,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(textBottomPadding),
+                    )
+                }
+
                 textLayout?.let { layout ->
-                    val cursorPos = state.selection.min.coerceIn(0, layout.layoutInput.text.length)
-                    val rect = layout.getCursorRect(cursorPos)
+                    val safeCursor = cursorPos.coerceIn(0, layout.layoutInput.text.length)
+                    val rect = layout.getCursorRect(safeCursor)
                     Box(
                         modifier = Modifier
                             .offset { IntOffset(rect.left.toInt(), rect.top.toInt()) }
                             .width(2.dp)
-                            .height(with(LocalDensity.current) { rect.height.toDp() })
+                            .height(with(density) { rect.height.toDp() })
                             .background(colors.content),
                     )
+                }
+
+                if (!singleLine) {
+                    LaunchedEffect(displayText, cursorPos, textLayout, viewportHeightPx, scrollMarginPx) {
+                        val currentLayout = textLayout ?: return@LaunchedEffect
+                        val safeCursor = cursorPos.coerceIn(0, currentLayout.layoutInput.text.length)
+                        val rect = currentLayout.getCursorRect(safeCursor)
+                        val target = (rect.bottom + scrollMarginPx - viewportHeightPx * 0.85f)
+                            .coerceAtLeast(0f)
+                            .toInt()
+                        scrollState.scrollTo(target)
+                    }
                 }
             }
 
@@ -191,7 +245,7 @@ fun LightTextInputEditor(
 
 private fun factory(
     callback: Lp3RepeatableKeyboardCallback,
-    keyboardOptionsFlow: StateFlow<KeyboardOptions>
+    keyboardOptionsFlow: StateFlow<KeyboardOptions>,
 ): ViewModelProvider.Factory =
     object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -205,17 +259,16 @@ private fun factory(
                         CapsLockedLayout, LowerCaseLayout, NumberLayout, SymbolsLayout, UpperCaseLayout -> false
                     }
                     LayoutOptions(showCloseButton)
-                }
+                },
             ) as T
         }
-
     }
 
 @Composable
 private fun lightInputTextStyle(): TextStyle {
     val colors = LightThemeTokens.colors
     val t = LightThemeTokens.typography
-    return t.heading
+    return t.fine
         .copy(
             color = colors.content,
             textDecoration = TextDecoration.Underline,
@@ -242,5 +295,5 @@ fun defaultKeyboardOptions() = KeyboardOptions(
     defaultEmojis,
     displayReturn = true,
     displayVoice = true,
-    enableKeyAnimation = true
+    enableKeyAnimation = true,
 )

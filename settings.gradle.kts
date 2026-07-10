@@ -1,5 +1,3 @@
-import java.util.Properties
-
 pluginManagement {
     repositories {
         google()
@@ -7,6 +5,12 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
+}
+
+import java.util.Properties
 
 val localProperties = Properties()
 val localPropertiesFile = file("local.properties")
@@ -31,7 +35,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "light-sdk"
+rootProject.name = "fold-light"
 
 includeBuild("plugin")
 include(":lint-rules")
@@ -40,10 +44,7 @@ include(":sdk:ui")
 include(":sdk:client")
 include(":sdk:server")
 include(":sdk:emulator")
-include(":tool")
-include(":examples:ui-demo")
-project(":examples:ui-demo").projectDir = file("examples/ui-demo")
-include(":examples:weather")
-project(":examples:weather").projectDir = file("examples/weather")
 include(":examples:authenticator")
 project(":examples:authenticator").projectDir = file("examples/authenticator")
+include(":examples:fold")
+project(":examples:fold").projectDir = file("examples/fold")

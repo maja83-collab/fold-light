@@ -1,0 +1,4 @@
+# Kopiraj ovu datoteku kao local.properties (NE commitaj je na GitHub!)
+# sdk.dir=C\:\\Users\\victor\\AppData\\Local\\Android\\Sdk
+# gpr.user=your_github_username
+# gpr.key=your_github_personal_access_token

@@ -6,21 +6,29 @@ import androidx.compose.ui.text.TextRange
 import com.thelightphone.lp3Keyboard.ui.Lp3RepeatableKeyboardCallback
 import com.thelightphone.lp3Keyboard.ui.SpecialKey
 
+/**
+ * LP3 keyboard may skip [onKeyReleased] when a long-press job was scheduled.
+ * Insert on press so every tap registers; repeats still use [onKeyRepeated].
+ */
 internal class TextInputKeyboardCallback(
-    private val state: TextFieldState,
+    private val stateProvider: () -> TextFieldState,
     private val singleLine: Boolean = false,
     private val onReturn: () -> Unit = {},
+    private val onStateChanged: () -> Unit = {},
 ) : Lp3RepeatableKeyboardCallback {
 
-    override fun onKeyPressed(code: Int) = Unit
+    private val state: TextFieldState
+        get() = stateProvider()
+
+    override fun onKeyPressed(code: Int) {
+        insertCodePoint(code)
+    }
 
     override fun onSpecialKeyPressed(key: SpecialKey) {
         if (key == SpecialKey.Space) insertAtCursor(" ")
     }
 
-    override fun onKeyReleased(code: Int) {
-        insertCodePoint(code)
-    }
+    override fun onKeyReleased(code: Int) = Unit
 
     override fun onSpecialKeyReleased(key: SpecialKey) {
         when (key) {
@@ -51,6 +59,7 @@ internal class TextInputKeyboardCallback(
     }
 
     private fun insertCodePoint(code: Int) {
+        if (!Character.isValidCodePoint(code)) return
         insertAtCursor(buildString { appendCodePoint(code) })
     }
 
@@ -61,6 +70,7 @@ internal class TextInputKeyboardCallback(
             replace(start, end, text)
             selection = TextRange(start + text.length)
         }
+        onStateChanged()
     }
 
     private fun deleteBeforeCursor(count: Int) {
@@ -72,6 +82,7 @@ internal class TextInputKeyboardCallback(
             delete(start, end)
             selection = TextRange(start)
         }
+        onStateChanged()
     }
 }
 

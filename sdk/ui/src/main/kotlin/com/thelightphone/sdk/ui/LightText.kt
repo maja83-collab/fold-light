@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,6 +82,7 @@ fun LightText(
     lighten: Boolean = false,
     underline: Boolean = false,
     monospace: Boolean = false,
+    bold: Boolean = false,
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Clip,
     color: Color? = null,
@@ -96,6 +98,7 @@ fun LightText(
         .let { if (align != null) it.copy(textAlign = align) else it }
         .let { if (underline) it.copy(textDecoration = TextDecoration.Underline) else it }
         .let { if (monospace) it.copy(fontFamily = FontFamily.Monospace) else it }
+        .let { if (bold) it.copy(fontWeight = FontWeight.Bold) else it }
 
     Text(
         text = text,
