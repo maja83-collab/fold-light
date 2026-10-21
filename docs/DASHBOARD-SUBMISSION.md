@@ -1,12 +1,12 @@
 # How to submit Fold Light (Dashboard)
 
 Light now builds tools from the `:tool` module in your public repo.
-In this project, `:tool` points at `examples/fold` (same app).
+In this project, `:tool` points at `tool` (same app).
 
 ## Before you submit
 
 1. Push the latest code to **https://github.com/maja83-collab/fold-light** (`main`).
-2. Confirm `examples/fold/lighttool.toml` has:
+2. Confirm `tool/lighttool.toml` has:
    - unique `id` (currently `com.thelightphone.fold`)
    - bumped `versionCode` for every new build
 3. At least one screenshot of the app on LP3 / emulator (Dashboard requires an image).

@@ -5,15 +5,15 @@ Step-by-step for Victor. Tick items as you go.
 ## 1. Code ready
 
 - [ ] App tested on real LP3 (trips, events, QR, copy, keyboard)
-- [ ] `examples/fold/lighttool.toml` — correct `id`, `label`, `versionCode`, `versionName`
+- [ ] `tool/lighttool.toml` — correct `id`, `label`, `versionCode`, `versionName`
 - [ ] Bump `versionCode` for each new submission build
 - [ ] `./gradlew :examples:fold:assembleRelease` succeeds
 
 ## 2. Public GitHub repository
 
-- [ ] Create **public** repo (fork of light-sdk with `examples/fold`, or dedicated repo)
+- [ ] Create **public** repo (fork of light-sdk with `tool`, or dedicated repo)
 - [ ] Remove secrets: `local.properties`, tokens, keys (use `local.properties.example` only)
-- [ ] Root README links to `examples/fold/README.md`
+- [ ] Root README links to `tool/README.md`
 - [ ] Commit hash you want Light to build from is pushed to `main`
 
 ## 3. Developer program
@@ -39,7 +39,7 @@ Light reviews manually; exact form may vary. Prepare:
 
 - [ ] Public repo URL
 - [ ] Commit SHA to build
-- [ ] Short description (from `examples/fold/README.md`)
+- [ ] Short description (from `tool/README.md`)
 - [ ] Screenshots or short screen recording on LP3
 - [ ] Permissions justification (CAMERA for QR)
 
@@ -75,7 +75,7 @@ Tested on Light Phone III hardware. Developer Mode sideload build installs and r
 
 ### Docs
 
-Tool README: `examples/fold/README.md`
+Tool README: `tool/README.md`
 
 ### Known platform note
 

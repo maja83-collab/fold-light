@@ -45,9 +45,8 @@ include(":sdk:shared")
 include(":sdk:ui")
 include(":sdk:client")
 
-// Light Dashboard builds :tool with -DlightSdk.toolOnly=true — Fold lives here.
+// Light Dashboard reads tool/lighttool.toml and builds :tool.
 include(":tool")
-project(":tool").projectDir = file("examples/fold")
 
 // Local-only modules (skipped on Light's tool-only CI builds).
 if (providers.systemProperty("lightSdk.toolOnly").orNull != "true") {

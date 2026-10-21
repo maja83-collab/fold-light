@@ -41,7 +41,7 @@ From the repository root:
 
 ```bash
 # Copy and fill in local.properties (see local.properties.example)
-# Light builds :tool — this repo maps :tool → examples/fold
+# Light builds :tool — this repo maps :tool → tool
 ./gradlew :tool:installDebug
 ```
 

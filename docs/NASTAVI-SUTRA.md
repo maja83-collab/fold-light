@@ -60,8 +60,8 @@ Detalji: `docs/DASHBOARD-SUBMISSION.md`
 
 | Što | Gdje |
 |-----|------|
-| App kod | `examples/fold/` |
-| Tool config | `examples/fold/lighttool.toml` |
+| App kod | `tool/` |
+| Tool config | `tool/lighttool.toml` |
 | Gradle `:tool` | `settings.gradle.kts` |
 | Submission | `docs/DASHBOARD-SUBMISSION.md` |
 

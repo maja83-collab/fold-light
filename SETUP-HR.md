@@ -10,7 +10,7 @@ Offline planer putovanja za Light Phone III. Baziran na [Light SDK](https://gith
 
 | Dio | Svrha |
 |-----|--------|
-| `examples/fold/` | **Tvoj FOLD** — putovanja, karte (QR), copy adresa |
+| `tool/` | **Tvoj FOLD** — putovanja, karte (QR), copy adresa |
 | `examples/authenticator/` | Lightov primjer (za učenje / usporedbu na emulatoru) |
 | `sdk/` | Light SDK biblioteke (potrebne za build) |
 | `docs/system_app/` | Upute za LightOS emulator |
@@ -82,7 +82,7 @@ Kad upoznaš izgled, vrati se na `C:\FoldLight` i radi na FOLD-u.
 ### LightOS emulator (opcionalno, kasnije)
 
 Za puniji Light doživljaj: `docs/system_app/README.md`  
-Za FOLD na emulatoru u `examples/fold/lighttool.toml` stavi:
+Za FOLD na emulatoru u `tool/lighttool.toml` stavi:
 
 ```toml
 serverPackage = "com.thelightphone.sdk.emulator"
