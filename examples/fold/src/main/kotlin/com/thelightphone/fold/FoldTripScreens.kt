@@ -46,6 +46,7 @@ internal fun TripDayContent(
     val dayKey = dayEntry?.first
     val dayEvents = dayEntry?.second.orEmpty()
     val swipeThresholdPx = with(LocalDensity.current) { 3f.gridUnitsAsDp().toPx() }
+    val hasEvents = dayEvents.isNotEmpty()
 
     Column(modifier = Modifier.fillMaxSize()) {
         LightTopBar(
@@ -55,6 +56,7 @@ internal fun TripDayContent(
                 contentDescription = "Back",
             ),
             center = LightTopBarCenter.Text(trip.name, variant = FoldTypography.TripName),
+            rightButton = foldSettingsButton(onClick = onOpenSettings),
             modifier = Modifier.padding(bottom = 0.25f.gridUnitsAsDp()),
         )
 
@@ -117,20 +119,25 @@ internal fun TripDayContent(
                 }
             }
 
-            if (dayEvents.isEmpty()) {
+            if (!hasEvents) {
                 LightText(
-                    text = "No events for this day.",
+                    text = "Nothing planned.",
                     variant = FoldTypography.Body,
                     lighten = true,
-                    modifier = Modifier.padding(bottom = 0.75f.gridUnitsAsDp()),
+                    modifier = Modifier.padding(top = 0.5f.gridUnitsAsDp()),
+                )
+                LightText(
+                    text = "Use ADD EVENT below.",
+                    variant = FoldTypography.Sub,
+                    lighten = true,
+                    modifier = Modifier.padding(top = 0.35f.gridUnitsAsDp(), bottom = 0.75f.gridUnitsAsDp()),
                 )
             } else {
-                val countLabel = if (dayEvents.size == 1) "1 event" else "${dayEvents.size} events"
                 LightText(
-                    text = countLabel,
-                    variant = FoldTypography.Body,
+                    text = if (dayEvents.size == 1) "1 event" else "${dayEvents.size} events",
+                    variant = FoldTypography.Sub,
                     lighten = true,
-                    modifier = Modifier.padding(bottom = 0.75f.gridUnitsAsDp()),
+                    modifier = Modifier.padding(bottom = 1f.gridUnitsAsDp()),
                 )
                 dayEvents.forEach { event ->
                     DayEventSummaryRow(event = event)
@@ -139,15 +146,13 @@ internal fun TripDayContent(
         }
 
         FoldBottomBar(
-            items = listOf(
-                foldSettingsButton(onClick = onOpenSettings),
-                LightBarButton.Text(text = "THIS WEEK", onClick = onOpenWeekly),
-                if (dayEvents.isNotEmpty()) {
-                    LightBarButton.Text(text = "INFO", onClick = onOpenDayDetail)
-                } else {
-                    LightBarButton.Text(text = "ADD", onClick = onAddEvent)
-                },
-            ),
+            items = buildList {
+                add(LightBarButton.Text(text = "ADD EVENT", onClick = onAddEvent))
+                add(LightBarButton.Text(text = "THIS WEEK", onClick = onOpenWeekly))
+                if (hasEvents) {
+                    add(LightBarButton.Text(text = "INFO", onClick = onOpenDayDetail))
+                }
+            },
         )
     }
 }
@@ -158,6 +163,7 @@ internal fun TripWeeklyContent(
     onBack: () -> Unit,
     onOpenDay: (Int) -> Unit,
     onOpenSettings: () -> Unit,
+    onAddEvent: () -> Unit,
 ) {
     val days = groupEventsByDay(trip.events)
 
@@ -169,6 +175,7 @@ internal fun TripWeeklyContent(
                 contentDescription = "Back",
             ),
             center = LightTopBarCenter.Text(trip.name, variant = FoldTypography.TripName),
+            rightButton = foldSettingsButton(onClick = onOpenSettings),
             modifier = Modifier.padding(bottom = 0.25f.gridUnitsAsDp()),
         )
         LightScrollView(
@@ -182,9 +189,21 @@ internal fun TripWeeklyContent(
                     text = "No events yet.",
                     variant = FoldTypography.Body,
                     lighten = true,
-                    modifier = Modifier.padding(vertical = 0.75f.gridUnitsAsDp()),
+                    modifier = Modifier.padding(top = 0.75f.gridUnitsAsDp()),
+                )
+                LightText(
+                    text = "Days appear here in date order once you add events.",
+                    variant = FoldTypography.Sub,
+                    lighten = true,
+                    modifier = Modifier.padding(top = 0.35f.gridUnitsAsDp(), bottom = 0.75f.gridUnitsAsDp()),
                 )
             } else {
+                LightText(
+                    text = if (days.size == 1) "1 day" else "${days.size} days",
+                    variant = FoldTypography.Sub,
+                    lighten = true,
+                    modifier = Modifier.padding(bottom = 0.5f.gridUnitsAsDp()),
+                )
                 days.forEachIndexed { index, (dayKey, events) ->
                     Column(
                         modifier = Modifier
@@ -208,7 +227,7 @@ internal fun TripWeeklyContent(
         }
         FoldBottomBar(
             items = listOf(
-                foldSettingsButton(onClick = onOpenSettings),
+                LightBarButton.Text(text = "ADD EVENT", onClick = onAddEvent),
             ),
         )
     }
@@ -278,9 +297,9 @@ internal fun TripSettingsContent(
     onRename: () -> Unit,
     onViewPack: () -> Unit,
     onDeleteTrip: () -> Unit,
-    onAddEvent: () -> Unit,
 ) {
     val hasPackList = trip.whatToPack.isNotBlank()
+    val dayCount = groupEventsByDay(trip.events).size
 
     Column(modifier = Modifier.fillMaxSize()) {
         LightTopBar(
@@ -304,7 +323,17 @@ internal fun TripSettingsContent(
                 value = if (hasPackList) "Tap to view" else "Nothing listed",
                 onClick = onViewPack,
             )
-            Spacer(modifier = Modifier.height(3f.gridUnitsAsDp()))
+            LightText(
+                text = when {
+                    dayCount == 0 -> "No dated events yet"
+                    dayCount == 1 -> "1 day planned"
+                    else -> "$dayCount days planned"
+                },
+                variant = FoldTypography.Sub,
+                lighten = true,
+                modifier = Modifier.padding(top = 0.5f.gridUnitsAsDp(), bottom = 0.75f.gridUnitsAsDp()),
+            )
+            Spacer(modifier = Modifier.height(2f.gridUnitsAsDp()))
             LightText(
                 text = "Delete trip",
                 variant = FoldTypography.Body,
@@ -314,11 +343,6 @@ internal fun TripSettingsContent(
                     .lightClickable(onClick = onDeleteTrip),
             )
         }
-        FoldBottomBar(
-            items = listOf(
-                LightBarButton.Text(text = "ADD EVENT", onClick = onAddEvent),
-            ),
-        )
     }
 }
 
@@ -384,16 +408,30 @@ private fun SettingsRow(
 
 @Composable
 private fun DayEventSummaryRow(event: TripEvent) {
-    LightText(
-        text = event.main,
-        variant = FoldTypography.EventTitle,
-        bold = true,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 0.5f.gridUnitsAsDp()),
-    )
+            .padding(bottom = 0.85f.gridUnitsAsDp()),
+    ) {
+        LightText(
+            text = event.main,
+            variant = FoldTypography.EventTitle,
+            bold = true,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        val timeHint = eventSummaryLine(event).substringAfter(" · ", missingDelimiterValue = "")
+        if (timeHint.isNotBlank()) {
+            LightText(
+                text = timeHint,
+                variant = FoldTypography.Sub,
+                lighten = true,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 0.15f.gridUnitsAsDp()),
+            )
+        }
+    }
 }
 
 @Composable

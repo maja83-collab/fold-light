@@ -22,6 +22,8 @@ internal sealed class FoldMode {
     data class TripSettings(val tripId: String) : FoldMode()
     data class TextInput(val kind: TextInputKind) : FoldMode()
     data class PickEventType(val tripId: String) : FoldMode()
+    /** All event fields on one screen; tap a row to edit, then SAVE once. */
+    data object EventForm : FoldMode()
     data class ConfirmDeleteTrip(val tripId: String, val fromList: Boolean = false, val fromSettings: Boolean = false) : FoldMode()
     data class ConfirmDeleteEvent(val tripId: String, val eventId: String) : FoldMode()
     data class ScanQr(val tripId: String, val eventId: String) : FoldMode()
@@ -244,10 +246,7 @@ internal class FoldViewModel(
                         if (mode.kind.fromList) FoldMode.TripList else FoldMode.TripSettings(mode.kind.tripId)
                     }
                     is TextInputKind.PackList -> packListFallbackMode(mode.kind)
-                    is TextInputKind.EventField -> {
-                        val tripId = state.eventDraft?.tripId
-                        if (tripId != null) FoldMode.TripDetail(tripId) else FoldMode.TripList
-                    }
+                    is TextInputKind.EventField -> FoldMode.EventForm
                 }
                 else -> currentMode
             }
@@ -344,28 +343,148 @@ internal class FoldViewModel(
         }
     }
 
+    fun cancelPickEventType(tripId: String) {
+        _uiState.update {
+            it.copy(
+                mode = FoldMode.TripDetail(tripId),
+                eventDraft = null,
+            )
+        }
+    }
+
     fun pickEventType(type: EventType, tripId: String) {
         val draft = EventFormDraft(tripId = tripId, type = type)
         _uiState.update {
             it.copy(
                 eventDraft = draft,
-                mode = FoldMode.TextInput(TextInputKind.EventField(EventFormField.MAIN)),
-                textInputSession = it.textInputSession + 1,
+                mode = FoldMode.EventForm,
             )
         }
     }
 
     fun startEditEvent(tripId: String, event: TripEvent) {
-        val (baseMain, checkOut, returnDt) = parseEventForEdit(event)
-        val draft = EventFormDraft(
+        val tripEvents = _uiState.value.trips.firstOrNull { it.id == tripId }?.events.orEmpty()
+        val draft = draftForEdit(tripId, event, tripEvents)
+        _uiState.update {
+            it.copy(
+                eventDraft = draft,
+                mode = FoldMode.EventForm,
+            )
+        }
+    }
+
+    fun cancelEventForm() {
+        val draft = _uiState.value.eventDraft
+        _uiState.update {
+            it.copy(
+                mode = when {
+                    draft == null -> FoldMode.TripList
+                    draft.editingEventId != null -> FoldMode.TripDayDetail(draft.tripId)
+                    else -> FoldMode.TripDetail(draft.tripId)
+                },
+                eventDraft = null,
+            )
+        }
+    }
+
+    fun openEventFormField(field: EventFormField) {
+        if (_uiState.value.eventDraft == null) return
+        _uiState.update {
+            it.copy(
+                mode = FoldMode.TextInput(TextInputKind.EventField(field)),
+                textInputSession = it.textInputSession + 1,
+            )
+        }
+    }
+
+    fun saveEventForm() {
+        val draft = _uiState.value.eventDraft ?: return
+        if (draft.main.isBlank()) {
+            _uiState.update { it.copy(errorModal = "Enter a title.") }
+            return
+        }
+        val dateFields = listOf(
+            draft.datetime,
+            draft.checkOutDatetime,
+            draft.returnDatetime,
+        )
+        for (raw in dateFields) {
+            if (raw.isBlank()) continue
+            val normalized = normalizeDateTimeInput(raw)
+            if (parseDateTime(normalized) == null) {
+                _uiState.update {
+                    it.copy(errorModal = "Use YYYY-MM-DD or DD.MM.YYYY. (optional HH:MM).")
+                }
+                return
+            }
+        }
+        saveEventFromDraft(
+            draft.copy(
+                datetime = normalizeDateTimeInput(draft.datetime),
+                checkOutDatetime = normalizeDateTimeInput(draft.checkOutDatetime),
+                returnDatetime = normalizeDateTimeInput(draft.returnDatetime),
+            ),
+        )
+    }
+
+    fun eventFormFields(): List<EventFormField> {
+        val type = _uiState.value.eventDraft?.type ?: return emptyList()
+        return fieldsForType(type)
+    }
+
+    fun eventFormFieldLabel(field: EventFormField): String =
+        eventFieldTitle(field, _uiState.value.eventDraft?.type)
+
+    fun eventFormFieldPlaceholder(field: EventFormField): String =
+        textInputPlaceholder(TextInputKind.EventField(field))
+
+    fun eventFormFieldValue(field: EventFormField): String {
+        val draft = _uiState.value.eventDraft ?: return ""
+        return valueForField(draft, field)
+    }
+
+    private fun draftForEdit(
+        tripId: String,
+        event: TripEvent,
+        tripEvents: List<TripEvent>,
+    ): EventFormDraft {
+        var main = event.main
+        var datetime = event.datetime
+        var checkOut = ""
+        var returnDt = ""
+
+        when {
+            event.type == EventType.HOTEL && main.endsWith(" (Check-in)") -> {
+                main = main.removeSuffix(" (Check-in)")
+                val sibling = tripEvents.firstOrNull {
+                    it.id != event.id &&
+                        it.type == EventType.HOTEL &&
+                        it.main == "$main (Check-out)"
+                }
+                checkOut = sibling?.datetime.orEmpty()
+            }
+            event.type == EventType.HOTEL && main.endsWith(" (Check-out)") -> {
+                main = main.removeSuffix(" (Check-out)")
+                checkOut = event.datetime
+                val sibling = tripEvents.firstOrNull {
+                    it.id != event.id &&
+                        it.type == EventType.HOTEL &&
+                        it.main == "$main (Check-in)"
+                }
+                datetime = sibling?.datetime.orEmpty()
+            }
+            main.endsWith(" (Return)") -> {
+                main = main.removeSuffix(" (Return)")
+                returnDt = event.datetime
+            }
+        }
+
+        return EventFormDraft(
             tripId = tripId,
             type = event.type,
             editingEventId = event.id,
-            main = baseMain,
-            datetime = when {
-                event.type == EventType.HOTEL && event.main.endsWith(" (Check-out)") -> ""
-                else -> event.datetime
-            },
+            main = main,
+            datetime = datetime,
             checkOutDatetime = checkOut,
             returnDatetime = returnDt,
             from = event.from,
@@ -375,31 +494,6 @@ internal class FoldViewModel(
             notes = event.notes,
             nextField = EventFormField.MAIN,
         )
-        _uiState.update {
-            it.copy(
-                eventDraft = draft,
-                mode = FoldMode.TextInput(TextInputKind.EventField(EventFormField.MAIN)),
-                textInputSession = it.textInputSession + 1,
-            )
-        }
-    }
-
-    private fun parseEventForEdit(event: TripEvent): Triple<String, String, String> {
-        var main = event.main
-        var checkOut = ""
-        var returnDt = ""
-        when {
-            main.endsWith(" (Check-in)") -> main = main.removeSuffix(" (Check-in)")
-            main.endsWith(" (Check-out)") -> {
-                main = main.removeSuffix(" (Check-out)")
-                checkOut = event.datetime
-            }
-            main.endsWith(" (Return)") -> {
-                main = main.removeSuffix(" (Return)")
-                returnDt = event.datetime
-            }
-        }
-        return Triple(main, checkOut, returnDt)
     }
 
     private fun fieldsForType(type: EventType): List<EventFormField> = when (type) {
@@ -442,79 +536,142 @@ internal class FoldViewModel(
 
     private fun submitEventField(field: EventFormField, value: String) {
         val draft = _uiState.value.eventDraft ?: return
-        if (field == EventFormField.MAIN && value.isEmpty()) {
-            _uiState.update { it.copy(errorModal = "Enter a title.") }
-            return
+
+        val isDateField = field == EventFormField.DATETIME ||
+            field == EventFormField.CHECK_OUT ||
+            field == EventFormField.RETURN_DATETIME
+        if (isDateField && value.isNotBlank()) {
+            val normalized = normalizeDateTimeInput(value)
+            if (parseDateTime(normalized) == null) {
+                _uiState.update {
+                    it.copy(errorModal = "Use YYYY-MM-DD or DD.MM.YYYY. (optional HH:MM).")
+                }
+                return
+            }
         }
+
+        val normalizedValue = if (isDateField) normalizeDateTimeInput(value) else value
 
         val updated = when (field) {
-            EventFormField.MAIN -> draft.copy(main = value)
-            EventFormField.DATETIME -> draft.copy(datetime = value)
-            EventFormField.CHECK_OUT -> draft.copy(checkOutDatetime = value)
-            EventFormField.RETURN_DATETIME -> draft.copy(returnDatetime = value)
-            EventFormField.FROM -> draft.copy(from = value)
-            EventFormField.TO -> draft.copy(to = value)
-            EventFormField.ADDRESS -> draft.copy(address = value)
-            EventFormField.WORKING_HOURS -> draft.copy(workingHours = value)
-            EventFormField.NOTES -> draft.copy(notes = value)
+            EventFormField.MAIN -> draft.copy(main = normalizedValue)
+            EventFormField.DATETIME -> draft.copy(datetime = normalizedValue)
+            EventFormField.CHECK_OUT -> draft.copy(checkOutDatetime = normalizedValue)
+            EventFormField.RETURN_DATETIME -> draft.copy(returnDatetime = normalizedValue)
+            EventFormField.FROM -> draft.copy(from = normalizedValue)
+            EventFormField.TO -> draft.copy(to = normalizedValue)
+            EventFormField.ADDRESS -> draft.copy(address = normalizedValue)
+            EventFormField.WORKING_HOURS -> draft.copy(workingHours = normalizedValue)
+            EventFormField.NOTES -> draft.copy(notes = normalizedValue)
         }
 
-        val fields = fieldsForType(updated.type)
-        val currentIndex = fields.indexOf(field)
-        val next = fields.getOrNull(currentIndex + 1)
-
-        if (next != null) {
-            _uiState.update {
-                it.copy(
-                    eventDraft = updated.copy(nextField = next),
-                    mode = FoldMode.TextInput(TextInputKind.EventField(next)),
-                    textInputSession = it.textInputSession + 1,
-                )
-            }
-            return
+        // Always return to the full form — one SAVE there, not after every field.
+        _uiState.update {
+            it.copy(
+                eventDraft = updated,
+                mode = FoldMode.EventForm,
+            )
         }
-
-        saveEventFromDraft(updated)
     }
 
     private fun saveEventFromDraft(draft: EventFormDraft) {
-        val existing = draft.editingEventId?.let { id ->
-            _uiState.value.trips
-                .flatMap { it.events }
-                .firstOrNull { it.id == id }
-        }
-
-        val newEvents = if (draft.editingEventId != null) {
-            listOf(buildSingleEvent(draft, draft.editingEventId, existing))
-        } else {
-            buildEventsFromDraft(draft, existing)
+        val normalizedDraft = draft.copy(
+            datetime = normalizeDateTimeInput(draft.datetime),
+            checkOutDatetime = normalizeDateTimeInput(draft.checkOutDatetime),
+            returnDatetime = normalizeDateTimeInput(draft.returnDatetime),
+        )
+        val tripEvents = _uiState.value.trips
+            .firstOrNull { it.id == normalizedDraft.tripId }
+            ?.events
+            .orEmpty()
+        val existing = normalizedDraft.editingEventId?.let { id ->
+            tripEvents.firstOrNull { it.id == id }
         }
 
         val trips = _uiState.value.trips.map { trip ->
-            if (trip.id != draft.tripId) return@map trip
-            val events = if (draft.editingEventId != null) {
-                trip.events.map { existingEvent ->
-                    if (existingEvent.id == draft.editingEventId) {
-                        newEvents.first().copy(done = existingEvent.done, qrCodes = existingEvent.qrCodes)
-                    } else {
-                        existingEvent
-                    }
-                }
+            if (trip.id != normalizedDraft.tripId) return@map trip
+            val events = if (normalizedDraft.editingEventId != null) {
+                applyEditedEvents(trip.events, normalizedDraft, existing)
             } else {
-                trip.events + newEvents
+                trip.events + buildEventsFromDraft(normalizedDraft, existing)
             }
             trip.copy(events = events)
         }
 
+        val focusDate = when {
+            normalizedDraft.type == EventType.HOTEL &&
+                existing?.main?.endsWith(" (Check-out)") == true ->
+                normalizedDraft.checkOutDatetime.ifBlank { normalizedDraft.datetime }
+            else -> normalizedDraft.datetime
+        }
+
         persist(trips) { state ->
-            val trip = trips.firstOrNull { it.id == draft.tripId }
-            val dayIndex = trip?.let { dayIndexForDate(it.events, parseDateKey(newEvents.first().datetime)) } ?: 0
+            val trip = trips.firstOrNull { it.id == normalizedDraft.tripId }
+            val dayIndex = trip?.let { dayIndexForDate(it.events, parseDateKey(focusDate)) } ?: 0
             state.copy(
-                mode = FoldMode.TripDetail(draft.tripId),
+                mode = if (normalizedDraft.editingEventId != null) {
+                    FoldMode.TripDayDetail(normalizedDraft.tripId)
+                } else {
+                    FoldMode.TripDetail(normalizedDraft.tripId)
+                },
                 eventDraft = null,
                 errorModal = null,
                 selectedDayIndex = dayIndex,
             )
+        }
+    }
+
+    private fun applyEditedEvents(
+        events: List<TripEvent>,
+        draft: EventFormDraft,
+        existing: TripEvent?,
+    ): List<TripEvent> {
+        if (draft.type == EventType.HOTEL) {
+            val baseName = draft.main.removeSuffix(" (Check-in)").removeSuffix(" (Check-out)")
+            val checkInId = when {
+                existing?.main?.endsWith(" (Check-in)") == true -> existing.id
+                else -> events.firstOrNull {
+                    it.type == EventType.HOTEL && it.main == "$baseName (Check-in)"
+                }?.id
+            }
+            val checkOutId = when {
+                existing?.main?.endsWith(" (Check-out)") == true -> existing.id
+                else -> events.firstOrNull {
+                    it.type == EventType.HOTEL && it.main == "$baseName (Check-out)"
+                }?.id
+            }
+
+            return events.map { event ->
+                when (event.id) {
+                    checkInId -> event.copy(
+                        main = "$baseName (Check-in)",
+                        datetime = draft.datetime,
+                        from = draft.from,
+                        to = draft.to,
+                        address = draft.address,
+                        workingHours = draft.workingHours,
+                        notes = draft.notes,
+                    )
+                    checkOutId -> event.copy(
+                        main = "$baseName (Check-out)",
+                        datetime = draft.checkOutDatetime.ifBlank { draft.datetime },
+                        from = draft.from,
+                        to = draft.to,
+                        address = draft.address,
+                        workingHours = draft.workingHours,
+                        notes = draft.notes,
+                    )
+                    draft.editingEventId -> buildSingleEvent(draft, event.id, event)
+                    else -> event
+                }
+            }
+        }
+
+        return events.map { event ->
+            if (event.id == draft.editingEventId) {
+                buildSingleEvent(draft, event.id, event)
+            } else {
+                event
+            }
         }
     }
 
@@ -597,15 +754,19 @@ internal class FoldViewModel(
             if (trip.id != tripId) return@map trip
             trip.copy(events = trip.events.filter { it.id != eventId })
         }
-        persist(trips) {
-            it.copy(
-                mode = FoldMode.TripDetail(tripId),
+        persist(trips) { state ->
+            val trip = trips.firstOrNull { it.id == tripId }
+            val days = trip?.let { groupEventsByDay(it.events) }.orEmpty()
+            val dayIndex = state.selectedDayIndex.coerceIn(0, (days.size - 1).coerceAtLeast(0))
+            state.copy(
+                mode = if (days.isEmpty()) FoldMode.TripDetail(tripId) else FoldMode.TripDayDetail(tripId),
+                selectedDayIndex = dayIndex,
             )
         }
     }
 
     fun cancelDeleteEvent(tripId: String) {
-        _uiState.update { it.copy(mode = FoldMode.TripDetail(tripId)) }
+        _uiState.update { it.copy(mode = FoldMode.TripDayDetail(tripId)) }
     }
 
     fun openCopySheet(label: String, text: String) {
@@ -726,6 +887,10 @@ internal class FoldViewModel(
                 _uiState.update { it.copy(mode = FoldMode.TripDetail(mode.tripId)) }
                 true
             }
+            FoldMode.EventForm -> {
+                cancelEventForm()
+                true
+            }
             is FoldMode.TextInput -> {
                 cancelTextInput()
                 true
@@ -842,7 +1007,7 @@ internal class FoldViewModel(
                 else -> "e.g. FlixBus"
             }
             EventFormField.DATETIME, EventFormField.CHECK_OUT, EventFormField.RETURN_DATETIME ->
-                "YYYY-MM-DD or YYYY-MM-DD HH:MM"
+                "21.10.2026. or 21.10.2026. 14:30"
             EventFormField.FROM -> "Departure"
             EventFormField.TO -> when (eventType) {
                 EventType.FLIGHT -> "Arrival"
@@ -860,7 +1025,8 @@ internal class FoldViewModel(
 
     fun textInputMultiline(kind: TextInputKind): Boolean = when (kind) {
         is TextInputKind.PackList -> true
-        is TextInputKind.EventField -> kind.field == EventFormField.NOTES
+        is TextInputKind.EventField ->
+            kind.field == EventFormField.NOTES || kind.field == EventFormField.ADDRESS
         else -> false
     }
 

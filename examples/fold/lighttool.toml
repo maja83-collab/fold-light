@@ -1,9 +1,10 @@
 [tool]
 id = "com.thelightphone.fold"
 label = "Fold Light"
-versionCode = 15
-versionName = "1.0.14"
+versionCode = 17
+versionName = "1.0.16"
 permissions = ["android.permission.CAMERA"]
-# Za LightOS emulator odkomentiraj sljedeći red i zakomentiraj com.lightos:
+capabilities = []
+# For LightOS emulator: use the line below and build with -DlightSdk.allowAltServerPackage=true
 # serverPackage = "com.thelightphone.sdk.emulator"
 serverPackage = "com.lightos"

@@ -33,7 +33,7 @@ Plan flights, hotels, transport, and places — day by day, entirely on your pho
 |-------|--------|
 | Tool ID | `com.thelightphone.fold` |
 | Label | Fold Light |
-| Version | 1.0.14 (versionCode 15) |
+| Version | 1.0.15 (versionCode 16) |
 
 ## Build & install (development)
 
@@ -41,7 +41,8 @@ From the repository root:
 
 ```bash
 # Copy and fill in local.properties (see local.properties.example)
-./gradlew :examples:fold:installDebug
+# Light builds :tool — this repo maps :tool → examples/fold
+./gradlew :tool:installDebug
 ```
 
 Requires a Light Phone III with USB debugging, or the Light SDK emulator.

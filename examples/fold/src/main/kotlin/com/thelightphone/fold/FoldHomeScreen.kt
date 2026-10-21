@@ -33,6 +33,7 @@ import com.thelightphone.sdk.ui.LightIcon
 import com.thelightphone.sdk.ui.LightIcons
 import com.thelightphone.sdk.ui.LightScrollView
 import com.thelightphone.sdk.ui.LightText
+import com.thelightphone.sdk.ui.LightTextField
 import com.thelightphone.sdk.ui.LightTextInputEditor
 import com.thelightphone.sdk.ui.LightTextVariant
 import com.thelightphone.sdk.ui.LightTheme
@@ -91,8 +92,11 @@ internal class FoldHomeScreen(sealedActivity: SealedLightActivity) :
                         )
                     }
                     is FoldMode.PasteQr -> {
+                        val clipboard = LocalClipboardManager.current
                         val textFieldState = key(state.textInputSession) {
-                            rememberTextFieldState("")
+                            rememberTextFieldState(
+                                clipboard.getText()?.text?.trim().orEmpty(),
+                            )
                         }
                         LightTextInputEditor(
                             title = "Paste ticket",
@@ -105,7 +109,7 @@ internal class FoldHomeScreen(sealedActivity: SealedLightActivity) :
                             onBack = { viewModel.cancelPasteQr(mode.tripId, mode.eventId) },
                             submitLabel = "SAVE",
                             showBackButton = true,
-                            singleLine = true,
+                            singleLine = false,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -143,6 +147,7 @@ internal class FoldHomeScreen(sealedActivity: SealedLightActivity) :
                                 onBack = { viewModel.backToTripDay(trip.id) },
                                 onOpenDay = { index -> viewModel.selectDay(trip.id, index) },
                                 onOpenSettings = { viewModel.openSettings(trip.id) },
+                                onAddEvent = { viewModel.startAddEvent(trip.id) },
                             )
                         }
                     }
@@ -175,7 +180,6 @@ internal class FoldHomeScreen(sealedActivity: SealedLightActivity) :
                                 onRename = { viewModel.startRenameTrip(trip.id) },
                                 onViewPack = { viewModel.openPackList(trip.id) },
                                 onDeleteTrip = { viewModel.confirmDeleteTrip(trip.id, fromSettings = true) },
-                                onAddEvent = { viewModel.startAddEvent(trip.id) },
                             )
                         }
                     }
@@ -193,7 +197,25 @@ internal class FoldHomeScreen(sealedActivity: SealedLightActivity) :
                     }
                     is FoldMode.PickEventType -> PickEventTypeContent(
                         onPick = { type -> viewModel.pickEventType(type, mode.tripId) },
+                        onBack = { viewModel.cancelPickEventType(mode.tripId) },
                     )
+                    FoldMode.EventForm -> {
+                        val draft = state.eventDraft
+                        if (draft == null) {
+                            LaunchedEffect(Unit) { viewModel.cancelEventForm() }
+                        } else {
+                            EventFormContent(
+                                typeLabel = draft.type.label(),
+                                fields = viewModel.eventFormFields(),
+                                labelFor = viewModel::eventFormFieldLabel,
+                                valueFor = viewModel::eventFormFieldValue,
+                                placeholderFor = viewModel::eventFormFieldPlaceholder,
+                                onOpenField = viewModel::openEventFormField,
+                                onBack = viewModel::cancelEventForm,
+                                onSave = viewModel::saveEventForm,
+                            )
+                        }
+                    }
                     is FoldMode.ConfirmDeleteTrip -> ConfirmModal(
                         title = "Delete trip?",
                         message = "This removes the trip from this phone.",
@@ -272,31 +294,51 @@ private fun TripListContent(
     onNewTrip: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        LightTopBar(center = LightTopBarCenter.Text(APP_DISPLAY_NAME), modifier = Modifier.padding(bottom = 1f.gridUnitsAsDp()))
+        LightTopBar(
+            center = LightTopBarCenter.Text(APP_DISPLAY_NAME),
+            modifier = Modifier.padding(bottom = 0.5f.gridUnitsAsDp()),
+        )
         LightScrollView(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(start = 1f.gridUnitsAsDp()),
+                .padding(horizontal = 1f.gridUnitsAsDp()),
         ) {
             if (trips.isEmpty()) {
                 LightText(
-                    text = "No trips yet. Create one for your next journey.",
+                    text = "No trips yet.",
                     variant = FoldTypography.Body,
+                    modifier = Modifier.padding(top = 1.5f.gridUnitsAsDp()),
+                )
+                LightText(
+                    text = "Add a trip to keep flights, hotels, and tickets in one place.",
+                    variant = FoldTypography.Sub,
                     lighten = true,
-                    modifier = Modifier.padding(vertical = 0.75f.gridUnitsAsDp()),
+                    modifier = Modifier.padding(top = 0.5f.gridUnitsAsDp()),
                 )
             } else {
                 trips.forEach { trip ->
-                    LightText(
-                        text = trip.name,
-                        variant = FoldTypography.TripNameList,
-                        maxLines = 1,
+                    val dayCount = groupEventsByDay(trip.events).size
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 0.75f.gridUnitsAsDp())
+                            .padding(vertical = 0.85f.gridUnitsAsDp())
                             .lightClickable { onOpenTrip(trip.id) },
-                    )
+                    ) {
+                        LightText(
+                            text = trip.name,
+                            variant = FoldTypography.TripNameList,
+                            maxLines = 1,
+                        )
+                        if (dayCount > 0) {
+                            LightText(
+                                text = if (dayCount == 1) "1 day" else "$dayCount days",
+                                variant = FoldTypography.Sub,
+                                lighten = true,
+                                modifier = Modifier.padding(top = 0.2f.gridUnitsAsDp()),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -412,9 +454,20 @@ private fun ViewQrContent(
 }
 
 @Composable
-private fun PickEventTypeContent(onPick: (EventType) -> Unit) {
+private fun PickEventTypeContent(
+    onPick: (EventType) -> Unit,
+    onBack: () -> Unit,
+) {
     Column(modifier = Modifier.fillMaxSize()) {
-        LightTopBar(center = LightTopBarCenter.Text("Add event"), modifier = Modifier.padding(bottom = 1f.gridUnitsAsDp()))
+        LightTopBar(
+            leftButton = LightBarButton.LightIcon(
+                icon = LightIcons.BACK,
+                onClick = onBack,
+                contentDescription = "Back",
+            ),
+            center = LightTopBarCenter.Text("Add event"),
+            modifier = Modifier.padding(bottom = 1f.gridUnitsAsDp()),
+        )
         LightScrollView(
             modifier = Modifier
                 .weight(1f)
@@ -432,6 +485,57 @@ private fun PickEventTypeContent(onPick: (EventType) -> Unit) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun EventFormContent(
+    typeLabel: String,
+    fields: List<EventFormField>,
+    labelFor: (EventFormField) -> String,
+    valueFor: (EventFormField) -> String,
+    placeholderFor: (EventFormField) -> String,
+    onOpenField: (EventFormField) -> Unit,
+    onBack: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        LightTopBar(
+            leftButton = LightBarButton.LightIcon(
+                icon = LightIcons.BACK,
+                onClick = onBack,
+                contentDescription = "Back",
+            ),
+            center = LightTopBarCenter.Text(typeLabel),
+            modifier = Modifier.padding(bottom = 0.5f.gridUnitsAsDp()),
+        )
+        LightScrollView(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 1f.gridUnitsAsDp()),
+        ) {
+            LightText(
+                text = "Tap a field to edit. SAVE when done.",
+                variant = FoldTypography.Sub,
+                lighten = true,
+                modifier = Modifier.padding(bottom = 0.5f.gridUnitsAsDp()),
+            )
+            fields.forEach { field ->
+                LightTextField(
+                    label = labelFor(field),
+                    value = valueFor(field),
+                    placeholder = placeholderFor(field),
+                    onClick = { onOpenField(field) },
+                    modifier = Modifier.padding(bottom = 0.25f.gridUnitsAsDp()),
+                )
+            }
+        }
+        FoldBottomBar(
+            items = listOf(
+                LightBarButton.Text(text = "SAVE", onClick = onSave),
+            ),
+        )
     }
 }
 

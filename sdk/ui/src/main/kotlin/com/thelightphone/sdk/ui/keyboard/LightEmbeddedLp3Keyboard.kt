@@ -6,26 +6,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.thelightphone.lp3Keyboard.ui.DarkKeyboardColors
 import com.thelightphone.lp3Keyboard.ui.LightKeyboardColors
-import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardTheme
-import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardViewModel
 import com.thelightphone.lp3Keyboard.ui.LocalKeyboardColors
+import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardTheme
 import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardWrapper
+import com.thelightphone.lp3Keyboard.ui.viewmodel.Lp3KeyboardViewModel
 import com.thelightphone.sdk.ui.LightThemeColors
 import com.thelightphone.sdk.ui.LightThemeTokens
 
-/** LP3 portrait display: 1080×1240 px at 3× density → 360×413.33 dp. */
-private const val LP3_WIDTH_DP = 1080f / 3f
-private const val LP3_HEIGHT_DP = 1240f / 3f
-
 @Composable
-fun LightEmbeddedLp3Keyboard(viewModel: Lp3KeyboardViewModel) {
+fun LightEmbeddedLp3Keyboard(
+    viewModel: Lp3KeyboardViewModel<*>, // SwipeResult unused for text input
+    additionalBottomHeight: Dp = 0.dp,
+    bottomBar: (@Composable () -> Unit)? = null,
+    handleHardwareKeyboardInput: Boolean = false,
+) {
     val layout by viewModel.layoutFlow.collectAsState()
     val keyboardOptions by viewModel.keyboardOptionsFlow.collectAsState()
     val layoutOptions by viewModel.layoutOptionsFlow.collectAsState()
@@ -35,34 +34,25 @@ fun LightEmbeddedLp3Keyboard(viewModel: Lp3KeyboardViewModel) {
     } else {
         DarkKeyboardColors
     }
-
-    val config = LocalConfiguration.current
-    val scaleX = config.screenWidthDp / LP3_WIDTH_DP
-    val scaleY = config.screenHeightDp / LP3_HEIGHT_DP
-    val scale = minOf(scaleX, scaleY).coerceAtLeast(1f)
-
     Lp3KeyboardTheme(keyboardColors) {
         val colors = LocalKeyboardColors.current
+        // No extra top padding here — Lp3KeyboardWrapper already has Spacer(10.dp).
+        // Extra padding was making the keys feel cramped on LP3 (1080×1240).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(colors.background),
-            contentAlignment = Alignment.BottomCenter,
         ) {
-            Box(
-                modifier = Modifier.graphicsLayer(
-                    scaleX = scale,
-                    scaleY = scale,
-                    transformOrigin = TransformOrigin(0.5f, 1f),
-                ),
-            ) {
-                Lp3KeyboardWrapper(
-                    layout = layout,
-                    keyboardOptions = keyboardOptions,
-                    layoutOptions = layoutOptions,
-                    callback = viewModel,
-                )
-            }
+            Lp3KeyboardWrapper(
+                layout = layout,
+                keyboardOptions = keyboardOptions,
+                layoutOptions = layoutOptions,
+                callback = viewModel,
+                swipeCallback = null,
+                handleHardwareKeyboardInput = handleHardwareKeyboardInput,
+                additionalBottomHeight = additionalBottomHeight,
+                bottomBar = bottomBar,
+            )
         }
     }
 }

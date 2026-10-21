@@ -4,15 +4,45 @@ Offline trip planner built on the [Light SDK](https://github.com/lightphone/ligh
 
 | Resource | Path |
 |----------|------|
-| **Tool README** (for Tool Library) | [examples/fold/README.md](./examples/fold/README.md) |
-| **Submission checklist** | [docs/TOOL-LIBRARY-SUBMISSION.md](./docs/TOOL-LIBRARY-SUBMISSION.md) |
-| **Clipboard issue draft** | [docs/GITHUB-ISSUE-clipboard-paste.md](./docs/GITHUB-ISSUE-clipboard-paste.md) |
+| **Tool README** | [examples/fold/README.md](./examples/fold/README.md) |
+| **Dashboard submission** | [docs/DASHBOARD-SUBMISSION.md](./docs/DASHBOARD-SUBMISSION.md) |
+| **Tool guidelines** | [TOOL_GUIDELINES.md](https://github.com/lightphone/light-sdk/blob/main/TOOL_GUIDELINES.md) |
 | **Setup (Croatian)** | [SETUP-HR.md](./SETUP-HR.md) |
 
-## Quick start
+## Module layout
 
-1. Copy `local.properties.example` → `local.properties` and fill in SDK path + GitHub token for packages
-2. Open in Android Studio
-3. Run or install: `./gradlew :examples:fold:installDebug`
+Light’s build server compiles **`:tool`**. In this repo, `:tool` is wired to `examples/fold` (Fold Light).
 
-Reference example in this repo: `examples/authenticator`
+```text
+examples/fold/   ← Fold Light source + lighttool.toml
+settings.gradle.kts maps :tool → examples/fold
+```
+
+## Quick start (emulator)
+
+Light recommends a phone-sized AVD: **1080 × 1240**, **3.92"**, **API 34**, **no Google Play**.
+
+```powershell
+# Emulator named "lp3" (create once in Android Studio Device Manager if missing)
+& "$env:LOCALAPPDATA\Android\Sdk\emulator\emulator.exe" -avd lp3
+
+cd C:\FoldLight
+.\gradlew :tool:installDebug
+```
+
+## Quick start (Android Studio)
+
+1. File → Open → `C:\FoldLight`
+2. Wait for Gradle sync
+3. Run configuration: **`:tool`** (or `:examples:fold` if listed — same code via `:tool`)
+4. Select device **lp3**
+5. Run ▶
+
+## Submit to Tool Library
+
+See [docs/DASHBOARD-SUBMISSION.md](./docs/DASHBOARD-SUBMISSION.md). Short version:
+
+1. Push to public GitHub
+2. Dashboard → Developer Account → Submit New Tool
+3. Submit build with a git commit / `main`
+4. Wait for Light review

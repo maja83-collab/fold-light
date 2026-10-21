@@ -2,21 +2,17 @@ package com.thelightphone.sdk
 
 import android.util.Log
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import com.thelightphone.lp3Keyboard.ui.KeyboardOptions
-import com.thelightphone.lp3Keyboard.ui.defaultEmojis
 import com.thelightphone.lp3Keyboard.ui.parseEmojiString
+import com.thelightphone.lp3Keyboard.ui.viewmodel.defaultEmojis
 import com.thelightphone.sdk.shared.LightServiceMethod
 import com.thelightphone.sdk.shared.error
 import com.thelightphone.sdk.shared.getOrNull
 import com.thelightphone.sdk.ui.defaultKeyboardOptions
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 
 private const val TAG = "LightKeyboardManager"
 
@@ -37,10 +33,10 @@ suspend fun refreshKeyboardOptions(): KeyboardOptions? {
 
     return KeyboardOptions(
         emojis = parseEmojiString(result.emojisAsString) ?: defaultEmojis,
-        // not using currently - may want to move into LayoutOptions in Lp3Keyboard source
         displayReturn = true,
         displayVoice = result.displayVoice,
-        enableKeyAnimation = result.enableKeyAnimation
+        enableKeyAnimation = result.enableKeyAnimation,
+        swipeEnabled = false,
     )
 }
 
@@ -51,16 +47,13 @@ fun rememberKeyboardOptions(
     initialOptions: KeyboardOptions = cachedOptions
 ): StateFlow<KeyboardOptions> {
     val flow = remember { MutableStateFlow(initialOptions) }
-    val scope = rememberCoroutineScope()
-    val refreshJob = remember { mutableStateOf<Job?>(null) }
 
-    SideEffect {
-        refreshJob.value?.cancel()
-        refreshJob.value = scope.launch {
-            refreshKeyboardOptions()?.let {
-                cachedOptions = it
-                flow.value = it
-            }
+    // Refresh once — not on every recomposition (that cancelled mid-keystroke and
+    // could drop letters when hopping hotel fields).
+    LaunchedEffect(Unit) {
+        refreshKeyboardOptions()?.let {
+            cachedOptions = it
+            flow.value = it
         }
     }
     return flow

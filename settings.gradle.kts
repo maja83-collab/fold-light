@@ -22,6 +22,8 @@ val ghPassword = localProperties.getProperty("gpr.key") ?: System.getenv("GH_PAC
 
 dependencyResolutionManagement {
     repositories {
+        // Local publish of light-keyboard (see docs/DASHBOARD-SUBMISSION.md)
+        mavenLocal()
         google()
         mavenCentral()
         maven {
@@ -42,9 +44,15 @@ include(":lint-rules")
 include(":sdk:shared")
 include(":sdk:ui")
 include(":sdk:client")
-include(":sdk:server")
-include(":sdk:emulator")
-include(":examples:authenticator")
-project(":examples:authenticator").projectDir = file("examples/authenticator")
-include(":examples:fold")
-project(":examples:fold").projectDir = file("examples/fold")
+
+// Light Dashboard builds :tool with -DlightSdk.toolOnly=true — Fold lives here.
+include(":tool")
+project(":tool").projectDir = file("examples/fold")
+
+// Local-only modules (skipped on Light's tool-only CI builds).
+if (providers.systemProperty("lightSdk.toolOnly").orNull != "true") {
+    include(":sdk:server")
+    include(":sdk:emulator")
+    include(":examples:authenticator")
+    project(":examples:authenticator").projectDir = file("examples/authenticator")
+}

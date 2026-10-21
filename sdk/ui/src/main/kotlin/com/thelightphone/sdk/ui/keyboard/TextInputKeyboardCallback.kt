@@ -2,23 +2,40 @@ package com.thelightphone.sdk.ui.keyboard
 
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.delete
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.text.TextRange
-import com.thelightphone.lp3Keyboard.ui.Lp3RepeatableKeyboardCallback
 import com.thelightphone.lp3Keyboard.ui.SpecialKey
+import com.thelightphone.lp3Keyboard.ui.viewmodel.Lp3RepeatableKeyboardCallback
+
+/**
+ * Mutable target for [TextInputKeyboardCallback] so the keyboard ViewModel can keep a
+ * stable callback instance while the active [TextFieldState] changes between fields.
+ */
+@Stable
+internal class TextInputTarget {
+    @Volatile
+    var state: TextFieldState? = null
+
+    @Volatile
+    var singleLine: Boolean = false
+
+    @Volatile
+    var onReturn: () -> Unit = {}
+
+    @Volatile
+    var onStateChanged: () -> Unit = {}
+}
 
 /**
  * LP3 keyboard may skip [onKeyReleased] when a long-press job was scheduled.
  * Insert on press so every tap registers; repeats still use [onKeyRepeated].
+ *
+ * Reads the active [TextInputTarget] on every key event so letters keep going to
+ * the current field (hotel name → address → notes, etc.).
  */
 internal class TextInputKeyboardCallback(
-    private val stateProvider: () -> TextFieldState,
-    private val singleLine: Boolean = false,
-    private val onReturn: () -> Unit = {},
-    private val onStateChanged: () -> Unit = {},
+    private val target: TextInputTarget,
 ) : Lp3RepeatableKeyboardCallback {
-
-    private val state: TextFieldState
-        get() = stateProvider()
 
     override fun onKeyPressed(code: Int) {
         insertCodePoint(code)
@@ -31,12 +48,13 @@ internal class TextInputKeyboardCallback(
     override fun onKeyReleased(code: Int) = Unit
 
     override fun onSpecialKeyReleased(key: SpecialKey) {
+        val state = target.state ?: return
         when (key) {
             SpecialKey.Backspace -> {
                 val before = state.text.subSequence(0, state.selection.min)
                 deleteBeforeCursor(surrogateAwareDeleteCount(before, 1))
             }
-            SpecialKey.Return -> if (singleLine) onReturn() else insertAtCursor("\n")
+            SpecialKey.Return -> if (target.singleLine) target.onReturn() else insertAtCursor("\n")
             else -> Unit
         }
     }
@@ -44,6 +62,7 @@ internal class TextInputKeyboardCallback(
     override fun onKeyLongPressed(code: Int) = Unit
 
     override fun onSpecialKeyLongPressed(key: SpecialKey) {
+        val state = target.state ?: return
         if (key == SpecialKey.Backspace) {
             val before = state.text.subSequence(0, state.selection.min)
             deleteBeforeCursor(deleteWordCount(before))
@@ -54,8 +73,12 @@ internal class TextInputKeyboardCallback(
         insertCodePoint(code)
     }
 
-    override fun onSpecialKeyRepeated(key: SpecialKey) {
-        if (key == SpecialKey.Space) insertAtCursor(" ")
+    override fun onSpecialKeyRepeated(specialKey: SpecialKey) {
+        if (specialKey == SpecialKey.Space) insertAtCursor(" ")
+    }
+
+    override fun onSubmitWord(word: CharSequence) {
+        insertAtCursor(word.toString())
     }
 
     private fun insertCodePoint(code: Int) {
@@ -64,17 +87,19 @@ internal class TextInputKeyboardCallback(
     }
 
     private fun insertAtCursor(text: String) {
+        val state = target.state ?: return
         state.edit {
             val start = selection.min
             val end = selection.max
             replace(start, end, text)
             selection = TextRange(start + text.length)
         }
-        onStateChanged()
+        target.onStateChanged()
     }
 
     private fun deleteBeforeCursor(count: Int) {
         if (count <= 0) return
+        val state = target.state ?: return
         state.edit {
             val end = selection.min
             if (end == 0) return@edit
@@ -82,7 +107,7 @@ internal class TextInputKeyboardCallback(
             delete(start, end)
             selection = TextRange(start)
         }
-        onStateChanged()
+        target.onStateChanged()
     }
 }
 

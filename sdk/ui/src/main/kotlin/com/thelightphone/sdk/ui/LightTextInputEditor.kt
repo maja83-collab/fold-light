@@ -42,21 +42,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.thelightphone.lp3Keyboard.ui.CapsLockedLayout
-import com.thelightphone.lp3Keyboard.ui.DefaultLp3KeyboardViewModel
-import com.thelightphone.lp3Keyboard.ui.EmojiLayout
-import com.thelightphone.lp3Keyboard.ui.ExtendedCharKeyboard
 import com.thelightphone.lp3Keyboard.ui.KeyboardOptions
 import com.thelightphone.lp3Keyboard.ui.LayoutOptions
-import com.thelightphone.lp3Keyboard.ui.LowerCaseLayout
-import com.thelightphone.lp3Keyboard.ui.Lp3KeyboardViewModel
-import com.thelightphone.lp3Keyboard.ui.Lp3RepeatableKeyboardCallback
-import com.thelightphone.lp3Keyboard.ui.NumberLayout
-import com.thelightphone.lp3Keyboard.ui.SymbolsLayout
-import com.thelightphone.lp3Keyboard.ui.UpperCaseLayout
-import com.thelightphone.lp3Keyboard.ui.defaultEmojis
+import com.thelightphone.lp3Keyboard.ui.viewmodel.EnQwertyLp3KeyboardViewModel
+import com.thelightphone.lp3Keyboard.ui.viewmodel.Lp3KeyboardViewModel
+import com.thelightphone.lp3Keyboard.ui.viewmodel.Lp3RepeatableKeyboardCallback
+import com.thelightphone.lp3Keyboard.ui.viewmodel.defaultEmojis
 import com.thelightphone.sdk.ui.keyboard.LightEmbeddedLp3Keyboard
 import com.thelightphone.sdk.ui.keyboard.TextInputKeyboardCallback
+import com.thelightphone.sdk.ui.keyboard.TextInputTarget
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -75,18 +69,22 @@ fun LightTextInputEditor(
     editorKey: Any = title,
 ) {
     val currentOnSubmit by rememberUpdatedState(onSubmit)
-    val currentState by rememberUpdatedState(state)
     var textRevision by remember(editorKey) { mutableIntStateOf(0) }
-    val keyboardCallback = remember(editorKey, singleLine) {
-        TextInputKeyboardCallback(
-            stateProvider = { currentState },
-            singleLine = singleLine,
-            onReturn = { currentOnSubmit(currentState.text) },
-            onStateChanged = { textRevision++ },
-        )
+
+    // Stable target + callback for the lifetime of this editorKey. The ViewModel keeps the
+    // callback; we retarget [state] every recomposition so later fields (e.g. address)
+    // still receive keystrokes.
+    val inputTarget = remember(editorKey) { TextInputTarget() }
+    inputTarget.state = state
+    inputTarget.singleLine = singleLine
+    inputTarget.onReturn = { currentOnSubmit(state.text) }
+    inputTarget.onStateChanged = { textRevision++ }
+
+    val keyboardCallback = remember(editorKey) {
+        TextInputKeyboardCallback(inputTarget)
     }
 
-    val keyboardViewModel: Lp3KeyboardViewModel = viewModel<DefaultLp3KeyboardViewModel>(
+    val keyboardViewModel: Lp3KeyboardViewModel<Nothing> = viewModel<EnQwertyLp3KeyboardViewModel<Nothing>>(
         key = "LightTextInputEditor-$editorKey",
         factory = factory(keyboardCallback, keyboardOptionsFlow),
     )
@@ -115,7 +113,7 @@ fun LightTextInputEditor(
     state: TextFieldState,
     onSubmit: (CharSequence) -> Unit,
     onBack: () -> Unit,
-    viewModel: Lp3KeyboardViewModel,
+    viewModel: Lp3KeyboardViewModel<Nothing>,
     modifier: Modifier = Modifier,
     submitLabel: String = "SAVE",
     submitIcon: LightIconConfiguration? = null,
@@ -222,22 +220,29 @@ fun LightTextInputEditor(
                 }
             }
 
-            LightEmbeddedLp3Keyboard(viewModel = viewModel)
-
-            LightBottomBar(
-                items = listOf(
-                    when (val icon = submitIcon) {
-                        null -> LightBarButton.Text(
-                            text = submitLabel,
-                            onClick = { onSubmit(state.text) },
-                        )
-                        else -> LightBarButton.LightIcon(
-                            icon = icon,
-                            onClick = { onSubmit(state.text) },
-                            contentDescription = submitLabel,
-                        )
-                    },
-                ),
+            // LP3 keyboard is fixed 164dp; bottom chrome matches LightBottomBar (4 + 1 grid).
+            // Do not pass PC/emulator hardware keys — they fight on-screen taps.
+            LightEmbeddedLp3Keyboard(
+                viewModel = viewModel,
+                additionalBottomHeight = 5f.gridUnitsAsDp(),
+                handleHardwareKeyboardInput = false,
+                bottomBar = {
+                    LightBottomBar(
+                        items = listOf(
+                            when (val icon = submitIcon) {
+                                null -> LightBarButton.Text(
+                                    text = submitLabel,
+                                    onClick = { onSubmit(state.text) },
+                                )
+                                else -> LightBarButton.LightIcon(
+                                    icon = icon,
+                                    onClick = { onSubmit(state.text) },
+                                    contentDescription = submitLabel,
+                                )
+                            },
+                        ),
+                    )
+                },
             )
         }
     }
@@ -250,15 +255,11 @@ private fun factory(
     object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return DefaultLp3KeyboardViewModel(
-                callback,
+            return EnQwertyLp3KeyboardViewModel<Nothing>(
+                passedCallback = callback,
                 keyboardOptionsFlow = keyboardOptionsFlow,
                 optionsForLayout = {
-                    val showCloseButton = when (it) {
-                        EmojiLayout, is ExtendedCharKeyboard -> true
-                        CapsLockedLayout, LowerCaseLayout, NumberLayout, SymbolsLayout, UpperCaseLayout -> false
-                    }
-                    LayoutOptions(showCloseButton)
+                    LayoutOptions(displayCloseButton = !it.isRootLayout)
                 },
             ) as T
         }
@@ -294,6 +295,7 @@ private fun PreviewLightTextInputEditorDark() {
 fun defaultKeyboardOptions() = KeyboardOptions(
     defaultEmojis,
     displayReturn = true,
-    displayVoice = true,
+    displayVoice = false,
     enableKeyAnimation = true,
+    swipeEnabled = false,
 )
