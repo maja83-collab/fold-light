@@ -4,18 +4,18 @@ Offline trip planner built on the [Light SDK](https://github.com/lightphone/ligh
 
 | Resource | Path |
 |----------|------|
-| **Tool README** | [examples/fold/README.md](./examples/fold/README.md) |
+| **Tool README** | [tool/README.md](./tool/README.md) |
 | **Dashboard submission** | [docs/DASHBOARD-SUBMISSION.md](./docs/DASHBOARD-SUBMISSION.md) |
 | **Tool guidelines** | [TOOL_GUIDELINES.md](https://github.com/lightphone/light-sdk/blob/main/TOOL_GUIDELINES.md) |
 | **Setup (Croatian)** | [SETUP-HR.md](./SETUP-HR.md) |
 
 ## Module layout
 
-Light’s build server compiles **`:tool`**. In this repo, `:tool` is wired to `examples/fold` (Fold Light).
+Light’s build server compiles **`:tool`**. In this repo, `:tool` is wired to `tool` (Fold Light).
 
 ```text
-examples/fold/   ← Fold Light source + lighttool.toml
-settings.gradle.kts maps :tool → examples/fold
+tool/   ← Fold Light source + lighttool.toml
+settings.gradle.kts maps :tool → tool
 ```
 
 ## Quick start (emulator)
