@@ -6,7 +6,6 @@ import com.thelightphone.sdk.ui.LightBarButton
 import com.thelightphone.sdk.ui.LightBottomBar
 import com.thelightphone.sdk.ui.LightBottomBarItem
 import com.thelightphone.sdk.ui.LightIcons
-import com.thelightphone.sdk.ui.LightTextVariant
 
 internal const val FOLD_BOTTOM_ICON_SIZE_UNITS = 1.5f
 
@@ -26,6 +25,5 @@ internal fun FoldBottomBar(
     LightBottomBar(
         items = items,
         modifier = modifier,
-        textVariant = LightTextVariant.Detail,
     )
 }

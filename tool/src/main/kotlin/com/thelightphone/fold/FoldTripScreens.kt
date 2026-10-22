@@ -55,7 +55,7 @@ internal fun TripDayContent(
                 onClick = onBack,
                 contentDescription = "Back",
             ),
-            center = LightTopBarCenter.Text(trip.name, variant = FoldTypography.TripName),
+            center = LightTopBarCenter.Text(trip.name),
             rightButton = foldSettingsButton(onClick = onOpenSettings),
             modifier = Modifier.padding(bottom = 0.25f.gridUnitsAsDp()),
         )
@@ -174,7 +174,7 @@ internal fun TripWeeklyContent(
                 onClick = onBack,
                 contentDescription = "Back",
             ),
-            center = LightTopBarCenter.Text(trip.name, variant = FoldTypography.TripName),
+            center = LightTopBarCenter.Text(trip.name),
             rightButton = foldSettingsButton(onClick = onOpenSettings),
             modifier = Modifier.padding(bottom = 0.25f.gridUnitsAsDp()),
         )
@@ -416,7 +416,6 @@ private fun DayEventSummaryRow(event: TripEvent) {
         LightText(
             text = event.main,
             variant = FoldTypography.EventTitle,
-            bold = true,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
@@ -448,7 +447,6 @@ private fun EventDetailBlock(
         LightText(
             text = event.main,
             variant = FoldTypography.EventTitle,
-            bold = true,
             modifier = Modifier.padding(bottom = 0.25f.gridUnitsAsDp()),
         )
         EventDetailBody(

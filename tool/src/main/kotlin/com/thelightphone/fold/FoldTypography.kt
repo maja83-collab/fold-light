@@ -10,7 +10,7 @@ internal object FoldTypography {
     val TripNameList = LightTextVariant.Subheading
     val Sub = LightTextVariant.Detail
     val Hero = LightTextVariant.Heading
-    val EventTitle = LightTextVariant.Copy
+    val EventTitle = LightTextVariant.Subheading
     val Detail = LightTextVariant.Copy
     val Action = LightTextVariant.Fine
     val SettingsValue = LightTextVariant.Heading
